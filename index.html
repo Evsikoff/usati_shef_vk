@@ -55,6 +55,25 @@
     </style>
     <!-- Yandex Games SDK -->
     <script src="https://yandex.ru/games/sdk/v2"></script>
+    <script>
+        if (typeof window.PokiSDK === "undefined") {
+            const noop = () => {};
+            const resolvedPromise = Promise.resolve();
+            window.PokiSDK = {
+                init: () => resolvedPromise,
+                gameplayStart: noop,
+                gameplayStop: noop,
+                gameLoadingFinished: noop,
+                commercialBreak: (callback) => {
+                    if (typeof callback === "function") {
+                        callback();
+                    }
+                    return resolvedPromise;
+                },
+                rewardedBreak: () => Promise.resolve(false)
+            };
+        }
+    </script>
     <!-- Libs and GDJS core files : -->
     <script src="libs/jshashtable.js" crossorigin="anonymous"></script>
     <script src="logger.js" crossorigin="anonymous"></script>
