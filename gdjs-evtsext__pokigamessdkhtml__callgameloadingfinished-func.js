@@ -9,8 +9,14 @@ gdjs.evtsExt__PokiGamesSDKHtml__CallGameLoadingFinished = {};
 
 gdjs.evtsExt__PokiGamesSDKHtml__CallGameLoadingFinished.userFunc0x769b268 = function GDJSInlineCode(runtimeScene, eventsFunctionContext) {
     "use strict";
-    if (typeof PokiSDK === "undefined") return;
-    PokiSDK.gameLoadingFinished();
+    // Yandex SDK LoadingAPI.ready()
+    if (typeof gdjs._yandexSDK !== "undefined" && gdjs._yandexSDK.isInitialized) {
+        gdjs._yandexSDK.signalLoadingReady();
+    }
+    // Fallback to PokiSDK if available
+    if (typeof PokiSDK !== "undefined") {
+        PokiSDK.gameLoadingFinished();
+    }
 
 };
 gdjs.evtsExt__PokiGamesSDKHtml__CallGameLoadingFinished.eventsList0 = function(runtimeScene, eventsFunctionContext) {

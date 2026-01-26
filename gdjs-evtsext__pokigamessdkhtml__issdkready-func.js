@@ -9,7 +9,10 @@ gdjs.evtsExt__PokiGamesSDKHtml__IsSdkReady = {};
 
 gdjs.evtsExt__PokiGamesSDKHtml__IsSdkReady.userFunc0x769b268 = function GDJSInlineCode(runtimeScene, eventsFunctionContext) {
     "use strict";
-    eventsFunctionContext.returnValue = gdjs._pokiGamesSDKHtmlExtension.isSdkReady;
+    // Check both Yandex SDK and Poki SDK readiness
+    var yandexReady = (typeof gdjs._yandexSDK !== "undefined" && gdjs._yandexSDK.isInitialized);
+    var pokiReady = gdjs._pokiGamesSDKHtmlExtension.isSdkReady;
+    eventsFunctionContext.returnValue = yandexReady || pokiReady;
 };
 gdjs.evtsExt__PokiGamesSDKHtml__IsSdkReady.eventsList0 = function(runtimeScene, eventsFunctionContext) {
 

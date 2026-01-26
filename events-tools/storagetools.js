@@ -13,8 +13,62 @@ var gdjs;
             }
             c || f.error("Storage actions won't work as no localStorage was found.");
             const u = new Hashtable;
+
+            /**
+             * Try to get data from Yandex cloud first, then fallback to localStorage
+             */
+            const getCloudOrLocalData = function(key) {
+                // Check Yandex cloud data first
+                if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.cloudData) {
+                    const cloudValue = S._yandexSDK.cloudData["GDJS_" + key];
+                    if (cloudValue !== undefined && cloudValue !== null) {
+                        try {
+                            return JSON.parse(cloudValue);
+                        } catch (e) {
+                            f.log('Cloud data for "' + key + '" is not valid JSON, using as-is');
+                            return cloudValue;
+                        }
+                    }
+                }
+                // Fallback to localStorage
+                return null;
+            };
+
+            /**
+             * Save data to both localStorage and Yandex cloud
+             */
+            const saveToCloudAndLocal = function(key, data) {
+                const jsonString = JSON.stringify(data);
+
+                // Save to localStorage
+                try {
+                    if (c) c.setItem("GDJS_" + key, jsonString);
+                } catch (e) {
+                    f.error('Unable to save to localStorage for "' + key + '": ' + e);
+                }
+
+                // Save to Yandex cloud
+                if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
+                    const cloudData = {};
+                    cloudData["GDJS_" + key] = jsonString;
+                    S._yandexSDK.saveCloudData(cloudData, false).catch(function(e) {
+                        f.error('Unable to save to Yandex cloud for "' + key + '": ' + e);
+                    });
+                }
+            };
+
             a.loadJSONFileFromStorage = t => {
                 if (u.containsKey(t)) return;
+
+                // Try to get from Yandex cloud first
+                let cloudData = getCloudOrLocalData(t);
+                if (cloudData !== null) {
+                    f.log('Loaded "' + t + '" from Yandex cloud');
+                    u.put(t, cloudData);
+                    return;
+                }
+
+                // Fallback to localStorage
                 let i = null;
                 try {
                     c && (i = c.getItem("GDJS_" + t))
@@ -27,28 +81,42 @@ var gdjs;
                 } catch (l) {
                     f.error('Unable to load data from "' + t + '" - data is not valid JSON: ' + l)
                 }
-                u.put(t, o)
-            }, a.unloadJSONFile = t => {
+                u.put(t, o);
+
+                // If we got data from localStorage, sync it to cloud
+                if (i && typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
+                    const cloudSyncData = {};
+                    cloudSyncData["GDJS_" + t] = i;
+                    S._yandexSDK.saveCloudData(cloudSyncData, false).catch(function(e) {
+                        // Silently ignore sync errors
+                    });
+                }
+            };
+
+            a.unloadJSONFile = t => {
                 if (!u.containsKey(t)) return;
                 const i = u.get(t),
                     o = JSON.stringify(i);
-                try {
-                    c && c.setItem("GDJS_" + t, o)
-                } catch (l) {
-                    f.error('Unable to save data to localStorage for "' + t + '": ' + l)
-                }
+
+                // Save to both localStorage and Yandex cloud
+                saveToCloudAndLocal(t, i);
+
                 u.remove(t)
             };
+
             const g = (t, i) => {
                 let o = !1;
                 u.containsKey(t) || (o = !0, a.loadJSONFileFromStorage(t));
                 const l = i(u.get(t));
                 return o && a.unloadJSONFile(t), l
             };
+
             a.clearJSONFile = t => g(t, i => {
                 for (const o in i) i.hasOwnProperty(o) && delete i[o];
                 return !0
-            }), a.elementExistsInJSONFile = (t, i) => g(t, o => {
+            });
+
+            a.elementExistsInJSONFile = (t, i) => g(t, o => {
                 const l = i.split("/");
                 let n = o;
                 for (let e = 0; e < l.length; ++e) {
@@ -56,7 +124,9 @@ var gdjs;
                     n = n[l[e]]
                 }
                 return !0
-            }), a.deleteElementFromJSONFile = (t, i) => g(t, o => {
+            });
+
+            a.deleteElementFromJSONFile = (t, i) => g(t, o => {
                 const l = i.split("/");
                 let n = o;
                 for (let e = 0; e < l.length; ++e) {
@@ -64,17 +134,23 @@ var gdjs;
                     e === l.length - 1 ? delete n[l[e]] : n = n[l[e]]
                 }
                 return !0
-            }), a.writeNumberInJSONFile = (t, i, o) => g(t, l => {
+            });
+
+            a.writeNumberInJSONFile = (t, i, o) => g(t, l => {
                 const n = i.split("/");
                 let e = l;
                 for (let r = 0; r < n.length; ++r) e[n[r]] || (e[n[r]] = {}), r === n.length - 1 ? e[n[r]].value = o : e = e[n[r]];
                 return !0
-            }), a.writeStringInJSONFile = (t, i, o) => g(t, l => {
+            });
+
+            a.writeStringInJSONFile = (t, i, o) => g(t, l => {
                 const n = i.split("/");
                 let e = l;
                 for (let r = 0; r < n.length; ++r) e[n[r]] || (e[n[r]] = {}), r === n.length - 1 ? e[n[r]].str = o : e = e[n[r]];
                 return !0
-            }), a.readNumberFromJSONFile = (t, i, o, l) => g(t, n => {
+            });
+
+            a.readNumberFromJSONFile = (t, i, o, l) => g(t, n => {
                 const e = i.split("/");
                 let r = n;
                 for (let s = 0; s < e.length; ++s) {
@@ -82,7 +158,9 @@ var gdjs;
                     s === e.length - 1 && typeof r[e[s]].value != "undefined" ? l.setNumber(r[e[s]].value) : r = r[e[s]]
                 }
                 return !0
-            }), a.readStringFromJSONFile = (t, i, o, l) => g(t, n => {
+            });
+
+            a.readStringFromJSONFile = (t, i, o, l) => g(t, n => {
                 const e = i.split("/");
                 let r = n;
                 for (let s = 0; s < e.length; ++s) {
