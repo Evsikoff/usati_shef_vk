@@ -51,6 +51,9 @@ gdjs.LoadingCode.GDspine_9595button_9595money_9595dotObjects4 = [];
 
 
 gdjs.LoadingCode.eventsList0 = function(runtimeScene) {
+    // Force Russian language
+    runtimeScene.getGame().getVariables().getFromIndex(0).setString("ru");
+    return;
 
     {
 
