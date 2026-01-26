@@ -20288,28 +20288,7 @@ gdjs.RepairCode.eventsList262 = function(runtimeScene) {
 };
 gdjs.RepairCode.userFunc0x2fd4848 = function GDJSInlineCode(runtimeScene) {
     "use strict";
-    let AD_Poki = 0;
-
-    PokiSDK.rewardedBreak(() => {
-        console.log("Rewarded break started");
-    }).then((success) => {
-        if (success) {
-            AD_Poki = 1;
-            console.log("The video was shown, reward granted");
-
-            runtimeScene.getVariables().get("AD_Poki").setNumber(1);
-        } else {
-            AD_Poki = 2;
-            console.log("The video was not shown, no reward granted");
-
-            runtimeScene.getVariables().get("AD_Poki").setNumber(2);
-        }
-        console.log("Rewarded break finished, proceeding to game");
-
-        console.log("AD_Poki reward status:", AD_Poki);
-    }).catch((error) => {
-        console.error("An error occurred while working with PokiSDK:", error);
-    });
+    gdjs._yandexSDK.showRewardedVideoForGDevelop(runtimeScene, function() { console.log("Rewarded video started"); });
 };
 gdjs.RepairCode.eventsList263 = function(runtimeScene) {
 

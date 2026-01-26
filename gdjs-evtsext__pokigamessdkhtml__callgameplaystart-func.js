@@ -9,8 +9,14 @@ gdjs.evtsExt__PokiGamesSDKHtml__CallGameplayStart = {};
 
 gdjs.evtsExt__PokiGamesSDKHtml__CallGameplayStart.userFunc0x769b268 = function GDJSInlineCode(runtimeScene, eventsFunctionContext) {
     "use strict";
-    if (typeof PokiSDK === "undefined") return;
-    PokiSDK.gameplayStart();
+    // Yandex SDK GameplayAPI.start()
+    if (typeof gdjs._yandexSDK !== "undefined" && gdjs._yandexSDK.isInitialized) {
+        gdjs._yandexSDK.gameplayStart();
+    }
+    // Fallback to PokiSDK if available
+    if (typeof PokiSDK !== "undefined") {
+        PokiSDK.gameplayStart();
+    }
 
 };
 gdjs.evtsExt__PokiGamesSDKHtml__CallGameplayStart.eventsList0 = function(runtimeScene, eventsFunctionContext) {

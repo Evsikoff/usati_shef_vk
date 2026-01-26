@@ -9,27 +9,31 @@ gdjs.evtsExt__PokiGamesSDKHtml__LoadSDK = {};
 
 gdjs.evtsExt__PokiGamesSDKHtml__LoadSDK.userFunc0x769b268 = function GDJSInlineCode(runtimeScene, eventsFunctionContext) {
     "use strict";
-    const logger = new gdjs.Logger("Poki games SDK HTML");
+    const logger = new gdjs.Logger("Yandex Games SDK");
 
-    function addScript(src) {
-        return new Promise((resolve, reject) => {
-            const scriptElement = document.createElement('script');
-
-            scriptElement.setAttribute('src', src);
-            scriptElement.addEventListener('load', resolve);
-            scriptElement.addEventListener('error', reject);
-
-            document.body.appendChild(scriptElement);
-        });
+    // Yandex SDK is loaded via script tag in index.html
+    // Mark SDK as ready if Yandex SDK is already initialized
+    if (typeof gdjs._yandexSDK !== "undefined" && gdjs._yandexSDK.isInitialized) {
+        gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
+        logger.log("Yandex SDK already initialized.");
+        return;
     }
-    addScript('https://game-cdn.poki.com/scripts/v2/poki-sdk.js').then(() => {
-        PokiSDK.init().then(() => {
+
+    // If Yandex SDK is available but not initialized, init it now
+    if (typeof gdjs._yandexSDK !== "undefined" && typeof YaGames !== "undefined") {
+        gdjs._yandexSDK.init().then(() => {
             gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
-            logger.log("Poki SDK successfully initialized.");
-        }).catch(() => {
-            logger.log("Initialized, but the user likely has adblock.");
+            logger.log("Yandex SDK successfully initialized.");
+            return gdjs._yandexSDK.initPlayer(false);
+        }).then(() => {
+            return gdjs._yandexSDK.loadCloudData();
+        }).catch((error) => {
+            logger.log("Yandex SDK initialization error: " + error);
         });
-    })
+    } else {
+        logger.log("Yandex SDK not available, running in local mode.");
+        gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
+    }
 };
 gdjs.evtsExt__PokiGamesSDKHtml__LoadSDK.eventsList0 = function(runtimeScene, eventsFunctionContext) {
 
