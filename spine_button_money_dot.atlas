@@ -1,0 +1,174 @@
+
+spine_button_money_dot.png
+size: 590, 28
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+button_money_dot_00001
+  rotate: false
+  xy: 2, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00002
+  rotate: false
+  xy: 28, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00003
+  rotate: false
+  xy: 54, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00004
+  rotate: false
+  xy: 80, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00005
+  rotate: false
+  xy: 470, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00006
+  rotate: false
+  xy: 494, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00018
+  rotate: false
+  xy: 494, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00007
+  rotate: false
+  xy: 518, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00008
+  rotate: false
+  xy: 106, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00009
+  rotate: false
+  xy: 132, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00010
+  rotate: false
+  xy: 158, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00011
+  rotate: false
+  xy: 184, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00012
+  rotate: false
+  xy: 210, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00013
+  rotate: false
+  xy: 236, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00014
+  rotate: false
+  xy: 262, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00015
+  rotate: false
+  xy: 288, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00016
+  rotate: false
+  xy: 314, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00017
+  rotate: false
+  xy: 542, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00019
+  rotate: false
+  xy: 566, 4
+  size: 22, 22
+  orig: 24, 24
+  offset: 1, 1
+  index: -1
+button_money_dot_00020
+  rotate: false
+  xy: 340, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00021
+  rotate: false
+  xy: 366, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00022
+  rotate: false
+  xy: 392, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00023
+  rotate: false
+  xy: 418, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1
+button_money_dot_00024
+  rotate: false
+  xy: 444, 2
+  size: 24, 24
+  orig: 24, 24
+  offset: 0, 0
+  index: -1

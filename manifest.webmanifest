@@ -1,0 +1,12 @@
+{
+  "name": "Cat Pizza - Poki Global Release v2.0.2",
+  "short_name": "Cat Pizza - Poki Global Release v2.0.2",
+  "id": "com.cosmonautic.catpizza",
+  "description": "",
+  "orientation": "any",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "black",
+  "categories": ["games", "entertainment"],
+  "icons": []
+}
