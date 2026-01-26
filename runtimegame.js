@@ -37,7 +37,7 @@ var gdjs;
             for (const s of this._data.resources.resources)
                 if (s.metadata) try {
                     const i = JSON.parse(s.metadata);
-                    i ? .embeddedResourcesMapping && this._embeddedResourcesMappings.set(s.name, i.embeddedResourcesMapping)
+                    i?.embeddedResourcesMapping && this._embeddedResourcesMappings.set(s.name, i.embeddedResourcesMapping)
                 } catch {
                     g.error("Some metadata of resources can not be successfully parsed.")
                 }

@@ -110,7 +110,7 @@ var gdjs;
         }
         getChildNamed(e) {
             const t = this._children[e];
-            return t ? ? (this._children[e] = new i.Variable)
+            return t ?? (this._children[e] = new i.Variable)
         }
         addChild(e, t) {
             return this._type !== "structure" && this.castTo("structure"), this._children[e] = t, this
