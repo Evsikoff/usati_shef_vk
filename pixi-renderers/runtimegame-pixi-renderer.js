@@ -63,7 +63,7 @@ var gdjs;
                 t.scrollLeft = 0, t.scrollTop = 0, i.preventDefault()
             }), e.addEventListener("pointerdown", () => {
                 e.focus()
-            }), t.style["-webkit-user-select"] = "none", e.parentNode ? .appendChild(t), this._domElementsContainer = t, this._resizeCanvas(), this._game.getScaleMode() === "nearest" && (e.style["image-rendering"] = "-moz-crisp-edges", e.style["image-rendering"] = "-webkit-optimize-contrast", e.style["image-rendering"] = "-webkit-crisp-edges", e.style["image-rendering"] = "pixelated"), this._game.getPixelsRounding() && (PIXI.settings.ROUND_PIXELS = !0), window.addEventListener("resize", () => {
+            }), t.style["-webkit-user-select"] = "none", e.parentNode?.appendChild(t), this._domElementsContainer = t, this._resizeCanvas(), this._game.getScaleMode() === "nearest" && (e.style["image-rendering"] = "-moz-crisp-edges", e.style["image-rendering"] = "-webkit-optimize-contrast", e.style["image-rendering"] = "-webkit-crisp-edges", e.style["image-rendering"] = "pixelated"), this._game.getPixelsRounding() && (PIXI.settings.ROUND_PIXELS = !0), window.addEventListener("resize", () => {
                 this._game.onWindowInnerSizeChanged(), this._resizeCanvas()
             }), e.focus()
         }
@@ -309,7 +309,7 @@ var gdjs;
             } else typeof navigator != "undefined" && navigator.app && navigator.app.exitApp && navigator.app.exitApp()
         }
         dispose(e) {
-            this._pixiRenderer ? .destroy(), this._threeRenderer ? .dispose(), this._pixiRenderer = null, this._threeRenderer = null, e && this._gameCanvas && this._gameCanvas.parentNode ? .removeChild(this._gameCanvas), this._gameCanvas = null, this._domElementsContainer ? .parentNode ? .removeChild(this._domElementsContainer), this._domElementsContainer = null, this._wasDisposed = !0
+            this._pixiRenderer?.destroy(), this._threeRenderer?.dispose(), this._pixiRenderer = null, this._threeRenderer = null, e && this._gameCanvas && this._gameCanvas.parentNode?.removeChild(this._gameCanvas), this._gameCanvas = null, this._domElementsContainer?.parentNode?.removeChild(this._domElementsContainer), this._domElementsContainer = null, this._wasDisposed = !0
         }
         getCanvas() {
             return this._gameCanvas
