@@ -1,127 +1,133 @@
 /**
- * Yandex Games SDK Integration
- * Handles SDK initialization, cloud saves, rewarded video ads, and gameplay API
+ * VK Bridge SDK Integration
+ * Handles SDK initialization, cloud saves (VK Storage), and rewarded/interstitial ads.
+ * Keeps the same gdjs._yandexSDK API surface so game code (codeN.js) stays unchanged.
  */
 
 var gdjs;
 (function(gdjs) {
-    // Yandex SDK namespace
     gdjs._yandexSDK = {
-        ysdk: null,
-        player: null,
         isInitialized: false,
-        isPlayerInitialized: false,
+        isPlayerInitialized: false, // kept for storagetools.js compatibility
         cloudData: null,
         lastCloudSaveTime: 0,
-        SAVE_DEBOUNCE_MS: 1000, // Debounce cloud saves to avoid rate limiting
+        SAVE_DEBOUNCE_MS: 1000,
+        isOdnoklassniki: false,
 
         /**
-         * Initialize Yandex SDK
-         * @returns {Promise} Resolves when SDK is ready
+         * Initialize VK Bridge
+         * @returns {Promise}
          */
         init: function() {
             var self = this;
-            return new Promise(function(resolve, reject) {
-                if (typeof YaGames === 'undefined') {
-                    console.warn('YaGames SDK not available, running in local mode');
+
+            // Detect platform from URL params
+            var urlParams = new URLSearchParams(window.location.search);
+            self.isOdnoklassniki = (urlParams.get('vk_client') === 'ok');
+
+            return new Promise(function(resolve) {
+                if (typeof vkBridge === 'undefined') {
+                    console.warn('VK Bridge not available, running in local mode');
                     resolve(null);
                     return;
                 }
 
-                YaGames.init()
-                    .then(function(ysdk) {
-                        self.ysdk = ysdk;
-                        self.isInitialized = true;
-                        console.log('Yandex SDK initialized successfully');
-
-                        // Get language from Yandex environment
-                        var lang = ysdk.environment.i18n.lang || 'ru';
-                        console.log('Yandex language:', lang);
-
-                        resolve(ysdk);
+                vkBridge.send('VKWebAppInit')
+                    .then(function(data) {
+                        if (data.result) {
+                            self.isInitialized = true;
+                            console.log('VK Bridge initialized. Odnoklassniki:', self.isOdnoklassniki);
+                        }
+                        resolve(data.result || null);
                     })
                     .catch(function(error) {
-                        console.error('Yandex SDK init error:', error);
-                        reject(error);
+                        console.error('VK Bridge init error:', error);
+                        resolve(null);
                     });
             });
         },
 
         /**
-         * Initialize player for cloud saves
-         * @param {boolean} requireAuth - Whether to require authorization
-         * @returns {Promise} Resolves with player object
+         * No direct VK equivalent for "player" — marks isPlayerInitialized for storagetools.js compatibility
+         * @returns {Promise}
          */
-        initPlayer: function(requireAuth) {
-            var self = this;
-            requireAuth = requireAuth || false;
-
-            return new Promise(function(resolve, reject) {
-                if (!self.isInitialized || !self.ysdk) {
-                    console.warn('SDK not initialized, cannot init player');
-                    resolve(null);
-                    return;
-                }
-
-                self.ysdk.getPlayer({ scopes: requireAuth })
-                    .then(function(player) {
-                        self.player = player;
-                        self.isPlayerInitialized = true;
-                        console.log('Yandex player initialized, authorized:', player.getMode() !== 'lite');
-                        resolve(player);
-                    })
-                    .catch(function(error) {
-                        console.error('Yandex player init error:', error);
-                        reject(error);
-                    });
-            });
+        initPlayer: function() {
+            this.isPlayerInitialized = this.isInitialized;
+            return Promise.resolve(this.isInitialized ? true : null);
         },
 
         /**
-         * Load data from Yandex cloud
-         * @returns {Promise} Resolves with cloud data object
+         * Load all saved game keys from VK Storage into cloudData cache.
+         * Uses a special index key (GDJS_keys_index) to know which keys to fetch.
+         * @returns {Promise}
          */
         loadCloudData: function() {
             var self = this;
-            return new Promise(function(resolve, reject) {
-                if (!self.isPlayerInitialized || !self.player) {
-                    console.warn('Player not initialized, cannot load cloud data');
+            self.cloudData = {};
+
+            return new Promise(function(resolve) {
+                if (!self.isInitialized) {
                     resolve(null);
                     return;
                 }
 
-                self.player.getData()
+                // Step 1: fetch the keys index
+                vkBridge.send('VKWebAppStorageGet', { keys: ['GDJS_keys_index'] })
                     .then(function(data) {
-                        self.cloudData = data || {};
-                        console.log('Cloud data loaded:', Object.keys(self.cloudData).length, 'keys');
+                        var indexEntry = data.keys && data.keys.find(function(k) {
+                            return k.key === 'GDJS_keys_index';
+                        });
+                        var keys = [];
+                        if (indexEntry && indexEntry.value) {
+                            try { keys = JSON.parse(indexEntry.value); } catch (e) {}
+                        }
+
+                        if (keys.length === 0) {
+                            console.log('VK Storage: no saved keys found');
+                            resolve({});
+                            return Promise.resolve(null);
+                        }
+
+                        // Step 2: fetch all game data keys
+                        return vkBridge.send('VKWebAppStorageGet', { keys: keys });
+                    })
+                    .then(function(data) {
+                        if (!data) return;
+                        if (data.keys) {
+                            data.keys.forEach(function(entry) {
+                                if (entry.value !== undefined && entry.value !== '') {
+                                    self.cloudData[entry.key] = entry.value;
+                                }
+                            });
+                        }
+                        console.log('VK Storage loaded:', Object.keys(self.cloudData).length, 'keys');
                         resolve(self.cloudData);
                     })
                     .catch(function(error) {
-                        console.error('Error loading cloud data:', error);
-                        self.cloudData = {};
-                        resolve(self.cloudData);
+                        console.error('Error loading VK Storage:', error);
+                        resolve({});
                     });
             });
         },
 
         /**
-         * Save data to Yandex cloud
-         * @param {Object} data - Data to save
-         * @param {boolean} flush - Whether to flush immediately
-         * @returns {Promise} Resolves when saved
+         * Save data to VK Storage (key-value, string values only).
+         * Maintains a GDJS_keys_index entry to track all stored keys.
+         * @param {Object} data - Map of key → JSON-string values
+         * @param {boolean} flush - Skip debounce and save immediately
+         * @returns {Promise}
          */
         saveCloudData: function(data, flush) {
             var self = this;
             flush = flush || false;
 
-            return new Promise(function(resolve, reject) {
-                if (!self.isPlayerInitialized || !self.player) {
-                    console.warn('Player not initialized, cannot save cloud data');
+            return new Promise(function(resolve) {
+                if (!self.isInitialized) {
                     resolve(false);
                     return;
                 }
 
-                // Debounce saves
+                // Debounce
                 var now = Date.now();
                 if (!flush && (now - self.lastCloudSaveTime) < self.SAVE_DEBOUNCE_MS) {
                     resolve(true);
@@ -129,26 +135,43 @@ var gdjs;
                 }
                 self.lastCloudSaveTime = now;
 
-                // Merge with existing cloud data
+                // Merge new data into cache
                 self.cloudData = Object.assign({}, self.cloudData, data);
 
-                self.player.setData(self.cloudData, flush)
+                // Save each key to VK Storage
+                var savePromises = Object.keys(data).map(function(key) {
+                    return vkBridge.send('VKWebAppStorageSet', {
+                        key: key,
+                        value: String(data[key])
+                    }).catch(function(e) {
+                        console.error('VK Storage set error for key "' + key + '":', e);
+                    });
+                });
+
+                // Update the keys index
+                var allKeys = Object.keys(self.cloudData).filter(function(k) {
+                    return k !== 'GDJS_keys_index';
+                });
+                savePromises.push(
+                    vkBridge.send('VKWebAppStorageSet', {
+                        key: 'GDJS_keys_index',
+                        value: JSON.stringify(allKeys)
+                    }).catch(function(e) {
+                        console.error('VK Storage: failed to update keys index:', e);
+                    })
+                );
+
+                Promise.all(savePromises)
                     .then(function() {
-                        console.log('Cloud data saved:', Object.keys(data).length, 'keys updated');
+                        console.log('VK Storage saved:', Object.keys(data).length, 'keys');
                         resolve(true);
                     })
-                    .catch(function(error) {
-                        console.error('Error saving cloud data:', error);
-                        resolve(false);
-                    });
+                    .catch(function() { resolve(false); });
             });
         },
 
         /**
-         * Get a specific value from cloud data
-         * @param {string} key - Key to get
-         * @param {*} defaultValue - Default value if not found
-         * @returns {*} Value or default
+         * Get a value from the in-memory cloudData cache
          */
         getCloudValue: function(key, defaultValue) {
             if (this.cloudData && typeof this.cloudData[key] !== 'undefined') {
@@ -158,169 +181,122 @@ var gdjs;
         },
 
         /**
-         * Set a specific value in cloud data
-         * @param {string} key - Key to set
-         * @param {*} value - Value to set
+         * Set a value in the in-memory cloudData cache
          */
         setCloudValue: function(key, value) {
-            if (!this.cloudData) {
-                this.cloudData = {};
-            }
+            if (!this.cloudData) this.cloudData = {};
             this.cloudData[key] = value;
         },
 
         /**
-         * Show rewarded video ad
-         * @param {Object} callbacks - Callback functions
-         * @returns {Promise} Resolves with reward status
+         * Show rewarded video ad via VK Bridge
+         * @param {Object} callbacks - onOpen, onRewarded, onClose, onError
+         * @returns {Promise<boolean>}
          */
         showRewardedVideo: function(callbacks) {
             var self = this;
             callbacks = callbacks || {};
 
-            return new Promise(function(resolve, reject) {
-                if (!self.isInitialized || !self.ysdk) {
-                    console.warn('SDK not initialized, cannot show rewarded video');
-                    if (callbacks.onError) callbacks.onError(new Error('SDK not initialized'));
+            return new Promise(function(resolve) {
+                if (!self.isInitialized) {
+                    console.warn('VK Bridge not initialized, cannot show rewarded ad');
+                    if (callbacks.onError) callbacks.onError(new Error('VK Bridge not initialized'));
                     resolve(false);
                     return;
                 }
 
-                self.ysdk.adv.showRewardedVideo({
-                    callbacks: {
-                        onOpen: function() {
-                            console.log('Yandex rewarded video opened');
-                            if (callbacks.onOpen) callbacks.onOpen();
-                        },
-                        onRewarded: function() {
-                            console.log('Yandex rewarded video - reward granted');
+                if (callbacks.onOpen) callbacks.onOpen();
+
+                vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+                    .then(function(data) {
+                        if (data.result) {
                             if (callbacks.onRewarded) callbacks.onRewarded();
-                        },
-                        onClose: function() {
-                            console.log('Yandex rewarded video closed');
                             if (callbacks.onClose) callbacks.onClose();
                             resolve(true);
-                        },
-                        onError: function(error) {
-                            console.error('Yandex rewarded video error:', error);
-                            if (callbacks.onError) callbacks.onError(error);
+                        } else {
+                            if (callbacks.onClose) callbacks.onClose();
                             resolve(false);
                         }
-                    }
-                });
+                    })
+                    .catch(function(error) {
+                        console.error('VK rewarded ad error:', error);
+                        if (callbacks.onError) callbacks.onError(error);
+                        resolve(false);
+                    });
             });
         },
 
         /**
-         * Call LoadingAPI.ready() to signal the game is loaded
+         * Show interstitial ad via VK Bridge
+         * @returns {Promise<boolean>}
          */
-        signalLoadingReady: function() {
-            if (this.isInitialized && this.ysdk && this.ysdk.features && this.ysdk.features.LoadingAPI) {
-                this.ysdk.features.LoadingAPI.ready();
-                console.log('Yandex LoadingAPI.ready() called');
-            }
+        showInterstitialAd: function() {
+            if (!this.isInitialized) return Promise.resolve(false);
+            return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' })
+                .then(function(data) { return !!data.result; })
+                .catch(function(error) {
+                    console.log('VK interstitial ad error:', error);
+                    return false;
+                });
         },
 
-        /**
-         * Call GameplayAPI.start() to signal gameplay started
-         */
-        gameplayStart: function() {
-            if (this.isInitialized && this.ysdk && this.ysdk.features && this.ysdk.features.GameplayAPI) {
-                this.ysdk.features.GameplayAPI.start();
-                console.log('Yandex GameplayAPI.start() called');
-            }
-        },
+        // No VK Bridge equivalents — kept as no-ops for compatibility
+        signalLoadingReady: function() {},
+        gameplayStart: function() {},
+        gameplayStop: function() {},
 
         /**
-         * Call GameplayAPI.stop() to signal gameplay stopped
-         */
-        gameplayStop: function() {
-            if (this.isInitialized && this.ysdk && this.ysdk.features && this.ysdk.features.GameplayAPI) {
-                this.ysdk.features.GameplayAPI.stop();
-                console.log('Yandex GameplayAPI.stop() called');
-            }
-        },
-
-        /**
-         * Get language from Yandex environment
-         * @returns {string} Language code (defaults to 'ru')
+         * Language — VK apps are Russian-primary, default to 'ru'
          */
         getLanguage: function() {
-            if (this.isInitialized && this.ysdk && this.ysdk.environment && this.ysdk.environment.i18n) {
-                return this.ysdk.environment.i18n.lang || 'ru';
-            }
             return 'ru';
         },
 
         /**
-         * Initialize after game load - blocks UI, initializes SDK, player, cloud data
+         * Full initialization sequence called after game assets load.
+         * Blocks UI via overlay while loading cloud saves.
          * @returns {Promise}
          */
         initializeAfterLoad: function() {
             var self = this;
             var overlay = document.getElementById('yandex-loading-overlay');
 
-            return new Promise(function(resolve, reject) {
-                // Show overlay to block UI
+            return new Promise(function(resolve) {
                 if (overlay) overlay.classList.remove('hidden');
 
-                // Initialize SDK
                 self.init()
-                    .then(function(ysdk) {
-                        if (!ysdk) {
-                            // Running locally without SDK
-                            if (overlay) overlay.classList.add('hidden');
-                            resolve();
-                            return;
-                        }
-
-                        // Initialize player
-                        return self.initPlayer(false);
+                    .then(function() {
+                        return self.initPlayer();
                     })
-                    .then(function(player) {
-                        if (!player) {
-                            // Player init failed or no SDK
-                            self.signalLoadingReady();
-                            self.gameplayStart();
-                            if (overlay) overlay.classList.add('hidden');
-                            resolve();
-                            return;
-                        }
-
-                        // Load cloud data
+                    .then(function() {
                         return self.loadCloudData();
                     })
                     .then(function(cloudData) {
-                        // Signal loading ready
-                        self.signalLoadingReady();
+                        if (cloudData && Object.keys(cloudData).length > 0) {
+                            // Cloud data found — sync it to localStorage (cloud takes priority)
+                            self.helpers.syncCloudToLocalStorage();
+                        } else if (self.isInitialized) {
+                            // First launch on VK — push any existing localStorage saves to cloud
+                            self.helpers.syncLocalStorageToCloud();
+                        }
 
-                        // Start gameplay
-                        self.gameplayStart();
-
-                        // Get and set language (force Russian as per existing code)
-                        var lang = self.getLanguage();
-                        console.log('Yandex SDK language:', lang);
-
-                        // Hide overlay to allow user interaction
                         if (overlay) overlay.classList.add('hidden');
-
-                        console.log('Yandex SDK fully initialized');
+                        console.log('VK Bridge fully initialized');
                         resolve();
                     })
                     .catch(function(error) {
-                        console.error('Yandex SDK initialization error:', error);
-                        // Hide overlay even on error
+                        console.error('VK Bridge initialization error:', error);
                         if (overlay) overlay.classList.add('hidden');
-                        resolve(); // Don't reject, game should still run
+                        resolve();
                     });
             });
         }
     };
 
-    // Helper functions for GDevelop integration
+    // Helper utilities for localStorage ↔ VK Storage sync
     gdjs._yandexSDK.helpers = {
         /**
-         * Sync all localStorage data to cloud
+         * Push all GDJS_ localStorage entries to VK Storage
          */
         syncLocalStorageToCloud: function() {
             var data = {};
@@ -330,8 +306,7 @@ var gdjs;
                 var key = localStorage.key(i);
                 if (key && key.startsWith(prefix)) {
                     try {
-                        var value = localStorage.getItem(key);
-                        data[key] = value;
+                        data[key] = localStorage.getItem(key);
                     } catch (e) {
                         console.warn('Error reading localStorage key:', key, e);
                     }
@@ -345,7 +320,7 @@ var gdjs;
         },
 
         /**
-         * Sync cloud data to localStorage
+         * Write VK Storage cache (cloudData) into localStorage
          */
         syncCloudToLocalStorage: function() {
             var cloudData = gdjs._yandexSDK.cloudData;
@@ -361,62 +336,43 @@ var gdjs;
                     }
                 }
             }
-            console.log('Cloud data synced to localStorage');
+            console.log('VK cloud data synced to localStorage');
         }
     };
 
     /**
-     * GDevelop-compatible rewarded video function
-     * Replaces PokiSDK.rewardedBreak() calls
-     * Sets AD_Poki variable: 1 = rewarded, 2 = not rewarded
+     * GDevelop-compatible rewarded video function.
+     * Called from game event code via: gdjs._yandexSDK.showRewardedVideoForGDevelop(runtimeScene, cb)
+     * Sets AD_Poki scene variable: 1 = rewarded, 2 = not rewarded / error
      */
     gdjs._yandexSDK.showRewardedVideoForGDevelop = function(runtimeScene, onStartCallback) {
         var self = this;
 
-        // Call start callback if provided (for compatibility with PokiSDK)
-        if (typeof onStartCallback === 'function') {
-            onStartCallback();
-        }
+        if (typeof onStartCallback === 'function') onStartCallback();
 
-        // If SDK not available, simulate failure
-        if (!self.isInitialized || !self.ysdk) {
-            console.warn('Yandex SDK not initialized, cannot show rewarded video');
-            runtimeScene.getVariables().get("AD_Poki").setNumber(2);
+        if (!self.isInitialized) {
+            console.warn('VK Bridge not initialized, cannot show rewarded ad');
+            runtimeScene.getVariables().get('AD_Poki').setNumber(2);
             return Promise.resolve(false);
         }
 
-        return new Promise(function(resolve) {
-            var wasRewarded = false;
-
-            self.ysdk.adv.showRewardedVideo({
-                callbacks: {
-                    onOpen: function() {
-                        console.log('Yandex rewarded video opened');
-                    },
-                    onRewarded: function() {
-                        console.log('Yandex rewarded video - reward granted');
-                        wasRewarded = true;
-                    },
-                    onClose: function() {
-                        console.log('Yandex rewarded video closed');
-                        if (wasRewarded) {
-                            runtimeScene.getVariables().get("AD_Poki").setNumber(1);
-                            console.log('AD_Poki reward status: 1 (rewarded)');
-                        } else {
-                            runtimeScene.getVariables().get("AD_Poki").setNumber(2);
-                            console.log('AD_Poki reward status: 2 (not rewarded)');
-                        }
-                        resolve(wasRewarded);
-                    },
-                    onError: function(error) {
-                        console.error('Yandex rewarded video error:', error);
-                        runtimeScene.getVariables().get("AD_Poki").setNumber(2);
-                        console.log('AD_Poki reward status: 2 (error)');
-                        resolve(false);
-                    }
+        return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+            .then(function(data) {
+                if (data.result) {
+                    runtimeScene.getVariables().get('AD_Poki').setNumber(1);
+                    console.log('AD_Poki: 1 (rewarded)');
+                    return true;
+                } else {
+                    runtimeScene.getVariables().get('AD_Poki').setNumber(2);
+                    console.log('AD_Poki: 2 (not rewarded)');
+                    return false;
                 }
+            })
+            .catch(function(error) {
+                console.error('VK rewarded ad error:', error);
+                runtimeScene.getVariables().get('AD_Poki').setNumber(2);
+                return false;
             });
-        });
     };
 
 })(gdjs || (gdjs = {}));

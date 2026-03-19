@@ -53,26 +53,33 @@
             pointer-events: none;
         }
     </style>
-    <!-- Yandex Games SDK -->
-    <script src="https://yandex.ru/games/sdk/v2"></script>
+    <!-- VK Bridge SDK -->
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
     <script>
-        if (typeof window.PokiSDK === "undefined") {
-            const noop = () => {};
-            const resolvedPromise = Promise.resolve();
-            window.PokiSDK = {
-                init: () => resolvedPromise,
-                gameplayStart: noop,
-                gameplayStop: noop,
-                gameLoadingFinished: noop,
-                commercialBreak: (callback) => {
-                    if (typeof callback === "function") {
-                        callback();
-                    }
-                    return resolvedPromise;
-                },
-                rewardedBreak: () => Promise.resolve(false)
-            };
-        }
+        // PokiSDK shim — proxies ad calls through VK Bridge
+        const noop = () => {};
+        window.PokiSDK = {
+            init: () => Promise.resolve(),
+            gameplayStart: noop,
+            gameplayStop: noop,
+            gameLoadingFinished: noop,
+            commercialBreak: () => {
+                if (typeof vkBridge !== 'undefined') {
+                    return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' })
+                        .then(data => data.result)
+                        .catch(() => false);
+                }
+                return Promise.resolve(false);
+            },
+            rewardedBreak: () => {
+                if (typeof vkBridge !== 'undefined') {
+                    return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
+                        .then(data => data.result)
+                        .catch(() => false);
+                }
+                return Promise.resolve(false);
+            }
+        };
     </script>
     <!-- Libs and GDJS core files : -->
     <script src="libs/jshashtable.js" crossorigin="anonymous"></script>
@@ -238,11 +245,11 @@
 
             //Load all assets and start the game
             game.loadAllAssets(function() {
-                // Initialize Yandex SDK after game assets are loaded
+                // Initialize VK Bridge after game assets are loaded
                 gdjs._yandexSDK.initializeAfterLoad().then(function() {
                     game.startGameLoop();
                 }).catch(function(error) {
-                    console.error("Yandex SDK initialization error:", error);
+                    console.error("VK Bridge initialization error:", error);
                     game.startGameLoop();
                 });
             });

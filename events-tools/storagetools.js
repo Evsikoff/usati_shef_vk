@@ -15,10 +15,10 @@ var gdjs;
             const u = new Hashtable;
 
             /**
-             * Try to get data from Yandex cloud first, then fallback to localStorage
+             * Try to get data from VK Storage cache first, then fallback to localStorage
              */
             const getCloudOrLocalData = function(key) {
-                // Check Yandex cloud data first
+                // Check VK Storage cache first
                 if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.cloudData) {
                     const cloudValue = S._yandexSDK.cloudData["GDJS_" + key];
                     if (cloudValue !== undefined && cloudValue !== null) {
@@ -35,7 +35,7 @@ var gdjs;
             };
 
             /**
-             * Save data to both localStorage and Yandex cloud
+             * Save data to both localStorage and VK Storage
              */
             const saveToCloudAndLocal = function(key, data) {
                 const jsonString = JSON.stringify(data);
@@ -47,12 +47,12 @@ var gdjs;
                     f.error('Unable to save to localStorage for "' + key + '": ' + e);
                 }
 
-                // Save to Yandex cloud
+                // Save to VK Storage
                 if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
                     const cloudData = {};
                     cloudData["GDJS_" + key] = jsonString;
                     S._yandexSDK.saveCloudData(cloudData, false).catch(function(e) {
-                        f.error('Unable to save to Yandex cloud for "' + key + '": ' + e);
+                        f.error('Unable to save to VK Storage for "' + key + '": ' + e);
                     });
                 }
             };
@@ -60,10 +60,10 @@ var gdjs;
             a.loadJSONFileFromStorage = t => {
                 if (u.containsKey(t)) return;
 
-                // Try to get from Yandex cloud first
+                // Try to get from VK Storage cache first
                 let cloudData = getCloudOrLocalData(t);
                 if (cloudData !== null) {
-                    f.log('Loaded "' + t + '" from Yandex cloud');
+                    f.log('Loaded "' + t + '" from VK Storage cache');
                     u.put(t, cloudData);
                     return;
                 }
@@ -83,7 +83,7 @@ var gdjs;
                 }
                 u.put(t, o);
 
-                // If we got data from localStorage, sync it to cloud
+                // If we got data from localStorage, sync it to VK Storage
                 if (i && typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
                     const cloudSyncData = {};
                     cloudSyncData["GDJS_" + t] = i;
@@ -98,7 +98,7 @@ var gdjs;
                 const i = u.get(t),
                     o = JSON.stringify(i);
 
-                // Save to both localStorage and Yandex cloud
+                // Save to both localStorage and VK Storage
                 saveToCloudAndLocal(t, i);
 
                 u.remove(t)

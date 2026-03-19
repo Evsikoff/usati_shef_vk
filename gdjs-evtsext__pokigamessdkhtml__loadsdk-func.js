@@ -9,29 +9,29 @@ gdjs.evtsExt__PokiGamesSDKHtml__LoadSDK = {};
 
 gdjs.evtsExt__PokiGamesSDKHtml__LoadSDK.userFunc0x769b268 = function GDJSInlineCode(runtimeScene, eventsFunctionContext) {
     "use strict";
-    const logger = new gdjs.Logger("Yandex Games SDK");
+    const logger = new gdjs.Logger("VK Bridge SDK");
 
-    // Yandex SDK is loaded via script tag in index.html
-    // Mark SDK as ready if Yandex SDK is already initialized
+    // VK Bridge is loaded via script tag in index.html and initialized in initializeAfterLoad().
+    // Mark SDK as ready if VK Bridge is already initialized.
     if (typeof gdjs._yandexSDK !== "undefined" && gdjs._yandexSDK.isInitialized) {
         gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
-        logger.log("Yandex SDK already initialized.");
+        logger.log("VK Bridge already initialized.");
         return;
     }
 
-    // If Yandex SDK is available but not initialized, init it now
-    if (typeof gdjs._yandexSDK !== "undefined" && typeof YaGames !== "undefined") {
+    // If VK Bridge is available but not yet initialized, init it now
+    if (typeof gdjs._yandexSDK !== "undefined" && typeof vkBridge !== "undefined") {
         gdjs._yandexSDK.init().then(() => {
             gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
-            logger.log("Yandex SDK successfully initialized.");
-            return gdjs._yandexSDK.initPlayer(false);
+            logger.log("VK Bridge successfully initialized.");
+            return gdjs._yandexSDK.initPlayer();
         }).then(() => {
             return gdjs._yandexSDK.loadCloudData();
         }).catch((error) => {
-            logger.log("Yandex SDK initialization error: " + error);
+            logger.log("VK Bridge initialization error: " + error);
         });
     } else {
-        logger.log("Yandex SDK not available, running in local mode.");
+        logger.log("VK Bridge not available, running in local mode.");
         gdjs._pokiGamesSDKHtmlExtension.isSdkReady = true;
     }
 };
