@@ -10,8 +10,7 @@ var gdjs;
         isInitialized: false,
         isPlayerInitialized: false, // kept for storagetools.js compatibility
         cloudData: null,
-        lastCloudSaveTime: 0,
-        SAVE_DEBOUNCE_MS: 1000,
+        CLOUD_SAVE_INTERVAL_MS: 10000,
         _pendingSaveData: null,
         _saveTimerId: null,
         isOdnoklassniki: false,
@@ -113,51 +112,60 @@ var gdjs;
         },
 
         /**
-         * Save data to VK Storage (key-value, string values only).
-         * Maintains a GDJS_keys_index entry to track all stored keys.
+         * Queue a single key-value pair for the next VK Storage flush.
+         * Called from storagetools.js on every save — must be lightweight.
+         */
+        queueCloudSave: function(key, value) {
+            if (!this.cloudData) this.cloudData = {};
+            this.cloudData[key] = value;
+
+            if (!this._pendingSaveData) this._pendingSaveData = {};
+            this._pendingSaveData[key] = value;
+
+            if (!this._saveTimerId && this.isInitialized) {
+                var self = this;
+                this._saveTimerId = setTimeout(function() {
+                    self._saveTimerId = null;
+                    self._flushPendingData();
+                }, self.CLOUD_SAVE_INTERVAL_MS);
+            }
+        },
+
+        /**
+         * Save data to VK Storage (bulk). Used for initial sync and explicit flush.
          * @param {Object} data - Map of key → JSON-string values
-         * @param {boolean} flush - Skip debounce and save immediately
+         * @param {boolean} flush - Send immediately
          * @returns {Promise}
          */
         saveCloudData: function(data, flush) {
             var self = this;
-            flush = flush || false;
+            if (!self.cloudData) self.cloudData = {};
 
-            // Always merge new data into cache immediately
-            self.cloudData = Object.assign({}, self.cloudData, data);
-
-            // Accumulate pending data for the next actual VK Storage write
-            self._pendingSaveData = Object.assign({}, self._pendingSaveData || {}, data);
-
-            return new Promise(function(resolve) {
-                if (!self.isInitialized) {
-                    resolve(false);
-                    return;
+            for (var key in data) {
+                if (data.hasOwnProperty(key)) {
+                    self.cloudData[key] = data[key];
+                    if (!self._pendingSaveData) self._pendingSaveData = {};
+                    self._pendingSaveData[key] = data[key];
                 }
+            }
 
-                if (!flush) {
-                    // Schedule a debounced flush if not already scheduled
-                    if (!self._saveTimerId) {
-                        self._saveTimerId = setTimeout(function() {
-                            self._saveTimerId = null;
-                            self._flushPendingData();
-                        }, self.SAVE_DEBOUNCE_MS);
-                    }
-                    resolve(true);
-                    return;
-                }
+            if (!self.isInitialized) return Promise.resolve(false);
 
-                // Flush immediately
-                self._flushPendingData().then(function() {
-                    resolve(true);
-                }).catch(function() {
-                    resolve(false);
-                });
-            });
+            if (flush) {
+                return self._flushPendingData();
+            }
+
+            if (!self._saveTimerId) {
+                self._saveTimerId = setTimeout(function() {
+                    self._saveTimerId = null;
+                    self._flushPendingData();
+                }, self.CLOUD_SAVE_INTERVAL_MS);
+            }
+            return Promise.resolve(true);
         },
 
         /**
-         * Actually send all accumulated pending data to VK Storage
+         * Send all accumulated pending data to VK Storage
          * @returns {Promise}
          */
         _flushPendingData: function() {
@@ -165,19 +173,20 @@ var gdjs;
             var dataToSave = self._pendingSaveData;
             self._pendingSaveData = null;
 
-            if (!dataToSave || Object.keys(dataToSave).length === 0) {
-                return Promise.resolve(true);
-            }
+            if (!dataToSave) return Promise.resolve(true);
 
-            // Save each key to VK Storage
-            var savePromises = Object.keys(dataToSave).map(function(key) {
-                return vkBridge.send('VKWebAppStorageSet', {
-                    key: key,
-                    value: String(dataToSave[key])
-                }).catch(function(e) {
-                    console.error('VK Storage set error for key "' + key + '":', e);
-                });
-            });
+            var keys = Object.keys(dataToSave);
+            if (keys.length === 0) return Promise.resolve(true);
+
+            var savePromises = [];
+            for (var i = 0; i < keys.length; i++) {
+                savePromises.push(
+                    vkBridge.send('VKWebAppStorageSet', {
+                        key: keys[i],
+                        value: String(dataToSave[keys[i]])
+                    }).catch(function() {})
+                );
+            }
 
             // Update the keys index
             var allKeys = Object.keys(self.cloudData).filter(function(k) {
@@ -187,17 +196,12 @@ var gdjs;
                 vkBridge.send('VKWebAppStorageSet', {
                     key: 'GDJS_keys_index',
                     value: JSON.stringify(allKeys)
-                }).catch(function(e) {
-                    console.error('VK Storage: failed to update keys index:', e);
-                })
+                }).catch(function() {})
             );
 
-            return Promise.all(savePromises)
-                .then(function() {
-                    console.log('VK Storage saved:', Object.keys(dataToSave).length, 'keys');
-                    return true;
-                })
-                .catch(function() { return false; });
+            return Promise.all(savePromises).then(function() {
+                return true;
+            }).catch(function() { return false; });
         },
 
         /**

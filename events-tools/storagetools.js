@@ -15,25 +15,21 @@ var gdjs;
             const u = new Hashtable;
 
 /**
-             * Save data to both localStorage and VK Storage
+             * Save data to localStorage immediately and queue for VK Storage
              */
             const saveToCloudAndLocal = function(key, data) {
                 const jsonString = JSON.stringify(data);
 
-                // Save to localStorage
+                // Save to localStorage immediately
                 try {
                     if (c) c.setItem("GDJS_" + key, jsonString);
                 } catch (e) {
                     f.error('Unable to save to localStorage for "' + key + '": ' + e);
                 }
 
-                // Save to VK Storage
+                // Queue for VK Storage (batched, no extra objects/promises per call)
                 if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
-                    const cloudData = {};
-                    cloudData["GDJS_" + key] = jsonString;
-                    S._yandexSDK.saveCloudData(cloudData, false).catch(function(e) {
-                        f.error('Unable to save to VK Storage for "' + key + '": ' + e);
-                    });
+                    S._yandexSDK.queueCloudSave("GDJS_" + key, jsonString);
                 }
             };
 
@@ -46,9 +42,7 @@ var gdjs;
                     if (cloudValue !== undefined && cloudValue !== null) {
                         try {
                             u.put(t, JSON.parse(cloudValue));
-                            f.log('Loaded "' + t + '" from VK Storage cache');
                         } catch (e) {
-                            f.log('Cloud data for "' + t + '" is not valid JSON, using empty');
                             u.put(t, {});
                         }
                     } else {
