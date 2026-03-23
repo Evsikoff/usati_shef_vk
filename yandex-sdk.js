@@ -12,6 +12,8 @@ var gdjs;
         cloudData: null,
         lastCloudSaveTime: 0,
         SAVE_DEBOUNCE_MS: 1000,
+        _pendingSaveData: null,
+        _saveTimerId: null,
         isOdnoklassniki: false,
 
         /**
@@ -121,53 +123,81 @@ var gdjs;
             var self = this;
             flush = flush || false;
 
+            // Always merge new data into cache immediately
+            self.cloudData = Object.assign({}, self.cloudData, data);
+
+            // Accumulate pending data for the next actual VK Storage write
+            self._pendingSaveData = Object.assign({}, self._pendingSaveData || {}, data);
+
             return new Promise(function(resolve) {
                 if (!self.isInitialized) {
                     resolve(false);
                     return;
                 }
 
-                // Debounce
-                var now = Date.now();
-                if (!flush && (now - self.lastCloudSaveTime) < self.SAVE_DEBOUNCE_MS) {
+                if (!flush) {
+                    // Schedule a debounced flush if not already scheduled
+                    if (!self._saveTimerId) {
+                        self._saveTimerId = setTimeout(function() {
+                            self._saveTimerId = null;
+                            self._flushPendingData();
+                        }, self.SAVE_DEBOUNCE_MS);
+                    }
                     resolve(true);
                     return;
                 }
-                self.lastCloudSaveTime = now;
 
-                // Merge new data into cache
-                self.cloudData = Object.assign({}, self.cloudData, data);
-
-                // Save each key to VK Storage
-                var savePromises = Object.keys(data).map(function(key) {
-                    return vkBridge.send('VKWebAppStorageSet', {
-                        key: key,
-                        value: String(data[key])
-                    }).catch(function(e) {
-                        console.error('VK Storage set error for key "' + key + '":', e);
-                    });
+                // Flush immediately
+                self._flushPendingData().then(function() {
+                    resolve(true);
+                }).catch(function() {
+                    resolve(false);
                 });
-
-                // Update the keys index
-                var allKeys = Object.keys(self.cloudData).filter(function(k) {
-                    return k !== 'GDJS_keys_index';
-                });
-                savePromises.push(
-                    vkBridge.send('VKWebAppStorageSet', {
-                        key: 'GDJS_keys_index',
-                        value: JSON.stringify(allKeys)
-                    }).catch(function(e) {
-                        console.error('VK Storage: failed to update keys index:', e);
-                    })
-                );
-
-                Promise.all(savePromises)
-                    .then(function() {
-                        console.log('VK Storage saved:', Object.keys(data).length, 'keys');
-                        resolve(true);
-                    })
-                    .catch(function() { resolve(false); });
             });
+        },
+
+        /**
+         * Actually send all accumulated pending data to VK Storage
+         * @returns {Promise}
+         */
+        _flushPendingData: function() {
+            var self = this;
+            var dataToSave = self._pendingSaveData;
+            self._pendingSaveData = null;
+
+            if (!dataToSave || Object.keys(dataToSave).length === 0) {
+                return Promise.resolve(true);
+            }
+
+            // Save each key to VK Storage
+            var savePromises = Object.keys(dataToSave).map(function(key) {
+                return vkBridge.send('VKWebAppStorageSet', {
+                    key: key,
+                    value: String(dataToSave[key])
+                }).catch(function(e) {
+                    console.error('VK Storage set error for key "' + key + '":', e);
+                });
+            });
+
+            // Update the keys index
+            var allKeys = Object.keys(self.cloudData).filter(function(k) {
+                return k !== 'GDJS_keys_index';
+            });
+            savePromises.push(
+                vkBridge.send('VKWebAppStorageSet', {
+                    key: 'GDJS_keys_index',
+                    value: JSON.stringify(allKeys)
+                }).catch(function(e) {
+                    console.error('VK Storage: failed to update keys index:', e);
+                })
+            );
+
+            return Promise.all(savePromises)
+                .then(function() {
+                    console.log('VK Storage saved:', Object.keys(dataToSave).length, 'keys');
+                    return true;
+                })
+                .catch(function() { return false; });
         },
 
         /**

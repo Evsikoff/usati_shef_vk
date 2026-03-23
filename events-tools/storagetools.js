@@ -14,27 +14,7 @@ var gdjs;
             c || f.error("Storage actions won't work as no localStorage was found.");
             const u = new Hashtable;
 
-            /**
-             * Try to get data from VK Storage cache first, then fallback to localStorage
-             */
-            const getCloudOrLocalData = function(key) {
-                // Check VK Storage cache first
-                if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.cloudData) {
-                    const cloudValue = S._yandexSDK.cloudData["GDJS_" + key];
-                    if (cloudValue !== undefined && cloudValue !== null) {
-                        try {
-                            return JSON.parse(cloudValue);
-                        } catch (e) {
-                            f.log('Cloud data for "' + key + '" is not valid JSON, using as-is');
-                            return cloudValue;
-                        }
-                    }
-                }
-                // Fallback to localStorage
-                return null;
-            };
-
-            /**
+/**
              * Save data to both localStorage and VK Storage
              */
             const saveToCloudAndLocal = function(key, data) {
@@ -60,15 +40,25 @@ var gdjs;
             a.loadJSONFileFromStorage = t => {
                 if (u.containsKey(t)) return;
 
-                // Try to get from VK Storage cache first
-                let cloudData = getCloudOrLocalData(t);
-                if (cloudData !== null) {
-                    f.log('Loaded "' + t + '" from VK Storage cache');
-                    u.put(t, cloudData);
+                // When VK Bridge is initialized, use cloud data as the single source of truth
+                if (typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isInitialized && S._yandexSDK.cloudData) {
+                    const cloudValue = S._yandexSDK.cloudData["GDJS_" + t];
+                    if (cloudValue !== undefined && cloudValue !== null) {
+                        try {
+                            u.put(t, JSON.parse(cloudValue));
+                            f.log('Loaded "' + t + '" from VK Storage cache');
+                        } catch (e) {
+                            f.log('Cloud data for "' + t + '" is not valid JSON, using empty');
+                            u.put(t, {});
+                        }
+                    } else {
+                        // Key not in cloud — use empty object, do NOT fall back to localStorage
+                        u.put(t, {});
+                    }
                     return;
                 }
 
-                // Fallback to localStorage
+                // Fallback to localStorage only when VK Bridge is NOT available
                 let i = null;
                 try {
                     c && (i = c.getItem("GDJS_" + t))
@@ -82,15 +72,6 @@ var gdjs;
                     f.error('Unable to load data from "' + t + '" - data is not valid JSON: ' + l)
                 }
                 u.put(t, o);
-
-                // If we got data from localStorage, sync it to VK Storage
-                if (i && typeof S._yandexSDK !== 'undefined' && S._yandexSDK.isPlayerInitialized) {
-                    const cloudSyncData = {};
-                    cloudSyncData["GDJS_" + t] = i;
-                    S._yandexSDK.saveCloudData(cloudSyncData, false).catch(function(e) {
-                        // Silently ignore sync errors
-                    });
-                }
             };
 
             a.unloadJSONFile = t => {
