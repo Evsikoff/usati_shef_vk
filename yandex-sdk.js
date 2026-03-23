@@ -231,13 +231,7 @@ var gdjs;
          * @returns {Promise<boolean>}
          */
         showInterstitialAd: function() {
-            if (!this.isInitialized) return Promise.resolve(false);
-            return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' })
-                .then(function(data) { return !!data.result; })
-                .catch(function(error) {
-                    console.log('VK interstitial ad error:', error);
-                    return false;
-                });
+            return Promise.resolve(false);
         },
 
         // No VK Bridge equivalents — kept as no-ops for compatibility

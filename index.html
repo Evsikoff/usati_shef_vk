@@ -63,14 +63,7 @@
             gameplayStart: noop,
             gameplayStop: noop,
             gameLoadingFinished: noop,
-            commercialBreak: () => {
-                if (typeof vkBridge !== 'undefined') {
-                    return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' })
-                        .then(data => data.result)
-                        .catch(() => false);
-                }
-                return Promise.resolve(false);
-            },
+            commercialBreak: () => Promise.resolve(false),
             rewardedBreak: () => {
                 if (typeof vkBridge !== 'undefined') {
                     return vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' })
