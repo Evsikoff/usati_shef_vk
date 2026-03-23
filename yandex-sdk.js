@@ -13,6 +13,7 @@ var gdjs;
         CLOUD_SAVE_INTERVAL_MS: 10000,
         _pendingSaveData: null,
         _saveTimerId: null,
+        _flushing: false,
         isOdnoklassniki: false,
 
         /**
@@ -151,7 +152,7 @@ var gdjs;
 
             if (!self.isInitialized) return Promise.resolve(false);
 
-            if (flush) {
+            if (flush && !self._flushing) {
                 return self._flushPendingData();
             }
 
@@ -170,6 +171,10 @@ var gdjs;
          */
         _flushPendingData: function() {
             var self = this;
+
+            // If already flushing, skip — data stays in _pendingSaveData for the next cycle
+            if (self._flushing) return Promise.resolve(true);
+
             var dataToSave = self._pendingSaveData;
             self._pendingSaveData = null;
 
@@ -178,9 +183,10 @@ var gdjs;
             var keys = Object.keys(dataToSave);
             if (keys.length === 0) return Promise.resolve(true);
 
+            self._flushing = true;
             console.log('VK Storage: flushing ' + keys.length + ' keys:', keys.join(', '));
 
-            // Build full list of keys to save (data keys + index)
+            // Build save queue: data keys + index
             var allCloudKeys = Object.keys(self.cloudData).filter(function(k) {
                 return k !== 'GDJS_keys_index';
             });
@@ -196,6 +202,14 @@ var gdjs;
             function saveNext(idx) {
                 if (idx >= saveQueue.length) {
                     console.log('VK Storage: flush complete (' + saved + ' saved, ' + failed + ' failed)');
+                    self._flushing = false;
+                    // If new data accumulated while we were flushing, schedule another flush
+                    if (self._pendingSaveData && !self._saveTimerId) {
+                        self._saveTimerId = setTimeout(function() {
+                            self._saveTimerId = null;
+                            self._flushPendingData();
+                        }, self.CLOUD_SAVE_INTERVAL_MS);
+                    }
                     return Promise.resolve(true);
                 }
                 var entry = saveQueue[idx];
