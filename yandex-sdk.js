@@ -178,14 +178,20 @@ var gdjs;
             var keys = Object.keys(dataToSave);
             if (keys.length === 0) return Promise.resolve(true);
 
+            console.log('VK Storage: flushing ' + keys.length + ' keys:', keys.join(', '));
+
             var savePromises = [];
             for (var i = 0; i < keys.length; i++) {
-                savePromises.push(
-                    vkBridge.send('VKWebAppStorageSet', {
-                        key: keys[i],
-                        value: String(dataToSave[keys[i]])
-                    }).catch(function() {})
-                );
+                (function(key) {
+                    savePromises.push(
+                        vkBridge.send('VKWebAppStorageSet', {
+                            key: key,
+                            value: String(dataToSave[key])
+                        }).catch(function(e) {
+                            console.error('VK Storage: failed to save "' + key + '":', e);
+                        })
+                    );
+                })(keys[i]);
             }
 
             // Update the keys index
@@ -196,12 +202,18 @@ var gdjs;
                 vkBridge.send('VKWebAppStorageSet', {
                     key: 'GDJS_keys_index',
                     value: JSON.stringify(allKeys)
-                }).catch(function() {})
+                }).catch(function(e) {
+                    console.error('VK Storage: failed to update keys index:', e);
+                })
             );
 
             return Promise.all(savePromises).then(function() {
+                console.log('VK Storage: flush complete (' + keys.length + ' keys saved)');
                 return true;
-            }).catch(function() { return false; });
+            }).catch(function(e) {
+                console.error('VK Storage: flush failed:', e);
+                return false;
+            });
         },
 
         /**
