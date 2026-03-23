@@ -180,40 +180,39 @@ var gdjs;
 
             console.log('VK Storage: flushing ' + keys.length + ' keys:', keys.join(', '));
 
-            var savePromises = [];
-            for (var i = 0; i < keys.length; i++) {
-                (function(key) {
-                    savePromises.push(
-                        vkBridge.send('VKWebAppStorageSet', {
-                            key: key,
-                            value: String(dataToSave[key])
-                        }).catch(function(e) {
-                            console.error('VK Storage: failed to save "' + key + '":', e);
-                        })
-                    );
-                })(keys[i]);
-            }
-
-            // Update the keys index
-            var allKeys = Object.keys(self.cloudData).filter(function(k) {
+            // Build full list of keys to save (data keys + index)
+            var allCloudKeys = Object.keys(self.cloudData).filter(function(k) {
                 return k !== 'GDJS_keys_index';
             });
-            savePromises.push(
-                vkBridge.send('VKWebAppStorageSet', {
-                    key: 'GDJS_keys_index',
-                    value: JSON.stringify(allKeys)
-                }).catch(function(e) {
-                    console.error('VK Storage: failed to update keys index:', e);
-                })
-            );
+            var saveQueue = [];
+            for (var i = 0; i < keys.length; i++) {
+                saveQueue.push({ key: keys[i], value: String(dataToSave[keys[i]]) });
+            }
+            saveQueue.push({ key: 'GDJS_keys_index', value: JSON.stringify(allCloudKeys) });
 
-            return Promise.all(savePromises).then(function() {
-                console.log('VK Storage: flush complete (' + keys.length + ' keys saved)');
-                return true;
-            }).catch(function(e) {
-                console.error('VK Storage: flush failed:', e);
-                return false;
-            });
+            // Send requests sequentially to avoid VK API rate limit
+            var saved = 0;
+            var failed = 0;
+            function saveNext(idx) {
+                if (idx >= saveQueue.length) {
+                    console.log('VK Storage: flush complete (' + saved + ' saved, ' + failed + ' failed)');
+                    return Promise.resolve(true);
+                }
+                var entry = saveQueue[idx];
+                return vkBridge.send('VKWebAppStorageSet', {
+                    key: entry.key,
+                    value: entry.value
+                }).then(function() {
+                    saved++;
+                    return saveNext(idx + 1);
+                }).catch(function(e) {
+                    failed++;
+                    console.error('VK Storage: failed to save "' + entry.key + '":', e);
+                    return saveNext(idx + 1);
+                });
+            }
+
+            return saveNext(0);
         },
 
         /**
